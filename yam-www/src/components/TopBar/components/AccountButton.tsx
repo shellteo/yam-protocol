@@ -15,13 +15,16 @@ interface AccountButtonProps {}
 const AccountButton: React.FC<AccountButtonProps> = (props) => {
   const [onPresentAccountModal] = useModal(<AccountModal />)
   
-  const { account, connect } = useWallet()
+  const { account, connect, chainId, networkName } = useWallet()
 
   return (
     <StyledAccountButton>
       {!account ? (
         <Button
-          onClick={() => connect('injected')}
+          onClick={() => {
+            console.log('injected', chainId, networkName)
+            connect('injected')
+          }}
           size="sm"
           text="Unlock Wallet"
         />
