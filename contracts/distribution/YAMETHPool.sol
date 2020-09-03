@@ -592,19 +592,17 @@ contract IRewardDistributionRecipient is Ownable {
 pragma solidity ^0.5.0;
 
 
-interface YAM {
-    function yamsScalingFactor() external returns (uint256);
-}
-
-
-
 contract LPTokenWrapper {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    IERC20 public weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 public weth = IERC20(0xBC14c60ADba0625e14C9E43c339E93A0887690Fc);
+
+    uint256 public constant DECIMALS = 1e18;
 
     uint256 private _totalSupply;
+    uint256 private _sqrtTotalSupply;
+    uint256 private _maxSupply;
     mapping(address => uint256) private _balances;
 
     function totalSupply() public view returns (uint256) {
@@ -617,36 +615,75 @@ contract LPTokenWrapper {
 
     function stake(uint256 amount) public {
         _totalSupply = _totalSupply.add(amount);
+        _maxSupply = _maxSupply.add(amount);
+        uint256 _prevBalance = _balances[msg.sender];
         _balances[msg.sender] = _balances[msg.sender].add(amount);
+        _sqrtTotalSupply = _sqrtTotalSupply.sub(sqrtBalance(_prevBalance)).add(sqrtBalance(_balances[msg.sender]));
         weth.safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function withdraw(uint256 amount) public {
         _totalSupply = _totalSupply.sub(amount);
+        uint256 _prevBalance = _balances[msg.sender];
         _balances[msg.sender] = _balances[msg.sender].sub(amount);
+        _sqrtTotalSupply = _sqrtTotalSupply.sub(sqrtBalance(_prevBalance)).add(sqrtBalance(_balances[msg.sender]));
         weth.safeTransfer(msg.sender, amount);
+    }
+    function sqrtTotalSupply() public view returns (uint256) {
+        return _sqrtTotalSupply;
+    }
+    function maxSupply() public view returns (uint256) {
+        return _maxSupply;
+    }
+
+    function sqrtBalance(uint256 balance) public pure returns (uint256) {
+        if (balance < DECIMALS) {
+            return balance;
+        } else {
+            return safeSqrt(balance.div(DECIMALS)).mul(DECIMALS);
+        }
+    }
+
+    function safeSqrt(uint256 x) internal pure returns (uint256 y) {
+        uint256 z = x.add(1).div(2);
+        y = x;
+        while (z < y) {
+            y = z;
+            z = x.div(z).add(z).div(2);
+        }
     }
 }
 
 contract YAMETHPool is LPTokenWrapper, IRewardDistributionRecipient {
-    IERC20 public yam = IERC20(0x0e2298E3B3390e3b945a5456fBf59eCc3f55DA16);
+    IERC20 public yam = IERC20(0x2FfE61437d65B123eCD04b9161f4C5b44Bb49CEd);
+    IERC20 public honey = IERC20(0x3d3eF5Dff46A03a35b7522287eaF5D0CE57cB5B6);
     uint256 public constant DURATION = 625000; // ~7 1/4 days
+    uint256 public constant HONEYWAIT = 1 days; // 2 days
+    uint256 public constant EPOCH_REWARD = 100;
 
-    uint256 public starttime = 1597172400; // 2020-08-11 19:00:00 (UTC UTC +00:00)
+    uint256 public starttime = 1599026400; // 2020-09-02 06:00:00 (UTC UTC +00:00)
     uint256 public periodFinish = 0;
     uint256 public rewardRate = 0;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
+    mapping(address => uint256) public paidReward;
+    mapping(address => uint256) public paidHoney;
 
     event RewardAdded(uint256 reward);
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
+    event HoneyPaid(address indexed user, uint256 reward);
 
     modifier checkStart() {
         require(block.timestamp >= starttime,"not start");
+        _;
+    }
+    modifier checkHoneyWait() {
+        require(block.timestamp >= starttime.add(HONEYWAIT), "need more bees");
+        require(maxSupply() >= EPOCH_REWARD.mul(DECIMALS), "need more pollen");
         _;
     }
 
@@ -665,7 +702,7 @@ contract YAMETHPool is LPTokenWrapper, IRewardDistributionRecipient {
     }
 
     function rewardPerToken() public view returns (uint256) {
-        if (totalSupply() == 0) {
+        if (sqrtTotalSupply() == 0) {
             return rewardPerTokenStored;
         }
         return
@@ -674,13 +711,13 @@ contract YAMETHPool is LPTokenWrapper, IRewardDistributionRecipient {
                     .sub(lastUpdateTime)
                     .mul(rewardRate)
                     .mul(1e18)
-                    .div(totalSupply())
+                    .div(sqrtTotalSupply())
             );
     }
 
     function earned(address account) public view returns (uint256) {
         return
-            balanceOf(account)
+            sqrtBalance(balanceOf(account))
                 .mul(rewardPerToken().sub(userRewardPerTokenPaid[account]))
                 .div(1e18)
                 .add(rewards[account]);
@@ -702,16 +739,37 @@ contract YAMETHPool is LPTokenWrapper, IRewardDistributionRecipient {
     function exit() external {
         withdraw(balanceOf(msg.sender));
         getReward();
+        getHoney();
     }
 
     function getReward() public updateReward(msg.sender) checkStart {
         uint256 reward = earned(msg.sender);
         if (reward > 0) {
+            paidReward[msg.sender] = paidReward[msg.sender].add(reward);
             rewards[msg.sender] = 0;
-            uint256 scalingFactor = YAM(address(yam)).yamsScalingFactor();
-            uint256 trueReward = reward.mul(scalingFactor).div(10**18);
-            yam.safeTransfer(msg.sender, trueReward);
-            emit RewardPaid(msg.sender, trueReward);
+            yam.safeTransfer(msg.sender, reward);
+            emit RewardPaid(msg.sender, reward);
+        }
+    }
+    function allEarned(address account) public view returns (uint256) {
+        return earned(account).add(paidReward[account]);
+    }
+    function formatSqrt(uint256 balance) internal pure returns (uint256) {
+        return safeSqrt(balance.div(1e18)).mul(1e18);
+    }
+    // allHoney - paidHoney, see getHoney(), if should wait, need return 0
+    function earnedHoney(address account) public view returns (uint256) {
+        return formatSqrt(allEarned(account)).sub(paidHoney[account]);
+    } 
+    function getHoney() public checkHoneyWait {
+        uint256 beeAmount = allEarned(msg.sender);
+        require(beeAmount > 1e18, "bee amount need > 1");
+        uint256 allHoney = formatSqrt(beeAmount);
+        uint256 needPayHoney = allHoney.sub(paidHoney[msg.sender]);
+        if (needPayHoney > 0) {
+            paidHoney[msg.sender] = allHoney;
+            honey.safeTransfer(msg.sender, needPayHoney);
+            emit HoneyPaid(msg.sender, needPayHoney);
         }
     }
 
@@ -737,5 +795,9 @@ contract YAMETHPool is LPTokenWrapper, IRewardDistributionRecipient {
           periodFinish = starttime.add(DURATION);
           emit RewardAdded(reward);
         }
+    }
+    function burnHoney(uint256 amount) external onlyRewardDistribution {
+        require(block.timestamp > starttime.add(DURATION), "not finish");
+        honey.safeTransfer(address(0), amount);
     }
 }
