@@ -1,66 +1,47 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React from 'react'
 import styled from 'styled-components'
 
-import { useWallet } from 'use-wallet'
+import farmer from '../../assets/img/farmer.png'
 
+import Button from '../../components/Button'
+import Container from '../../components/Container'
 import Page from '../../components/Page'
 import PageHeader from '../../components/PageHeader'
 import Spacer from '../../components/Spacer'
 
-import useYam from '../../hooks/useYam'
-
-import Rebase from './components/Rebase'
-import Stats from './components/Stats'
-import Vote from './components/Vote'
-
-import { OverviewData } from './types'
-import { getStats } from './utils'
+import Balances from './components/Balances'
 
 const Home: React.FC = () => {
-
-  const { account } = useWallet()
-
-  const yam = useYam()
-  const [{
-    circSupply,
-    curPrice,
-    nextRebase,
-    targetPrice,
-    totalSupply,
-  }, setStats] = useState<OverviewData>({})
-
-  const fetchStats = useCallback(async () => {
-    const statsData = await getStats(yam)
-    setStats(statsData)
-  }, [yam, setStats])
-
-  useEffect(() => {
-    if (yam) {
-      fetchStats()
-    }
-  }, [yam])
-
   return (
     <Page>
-      <PageHeader icon="⚠️" subtitle="Having liquidity in the YAM/YCRV Uniswap Pool is extremely dangerous because of a bug in the rebase functionality" title="Warning" />
-      <div style={{
-        margin: '-24px auto 48px'
-      }}>
-        <StyledLink href="https://medium.com/@yamfinance/how-to-exit-the-eternal-lands-pool-and-withdraw-your-yam-823d57c95f3a">How to withdraw from Uniswap</StyledLink>
-      </div>
-      <Spacer />
-      <div>
-        <StyledOverview>
-          <Rebase nextRebase={nextRebase} />
-          <StyledSpacer />
-          <Stats
-            circSupply={circSupply}
-            curPrice={curPrice}
-            targetPrice={targetPrice}
-            totalSupply={totalSupply}
-          />
-        </StyledOverview>
-      </div>
+      <PageHeader
+        icon="🗣"
+        subtitle="Vote on the future of the YAM protocol."
+        title="YAMV2 governance is live."
+      />
+      <Container>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <Button href="https://snapshot.page/#/yam" text="View Proposals" />
+          <Spacer />
+          <Button href="https://forum.yam.finance" text="Governance Forum" />
+        </div>
+        <Spacer size="lg" />
+        <Balances />
+      </Container>
+      <Spacer size="lg" />
+        <div style={{
+          margin: '0 auto'
+        }}>
+          <Button
+            size="sm"
+            text="View V1 Farms"
+            to="/farms"
+            variant="secondary"
+           />
+        </div>
     </Page>
   )
 }
@@ -71,7 +52,7 @@ const StyledOverview = styled.div`
   @media (max-width: 768px) {
     width: 100%;
     flex-flow: column nowrap;
-    align-items: center;
+    align-items: stretch;
   }
 `
 

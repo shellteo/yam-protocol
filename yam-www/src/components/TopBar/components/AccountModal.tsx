@@ -1,75 +1,71 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback } from 'react'
 import styled from 'styled-components'
+import { useWallet } from 'use-wallet'
 
-import { yam as yamAddress } from '../../../constants/tokenAddresses'
+import { yam as yamAddress, yamv2 as yamV2Address } from '../../../constants/tokenAddresses'
 import useTokenBalance from '../../../hooks/useTokenBalance'
 import { getDisplayBalance } from '../../../utils/formatBalance'
 
 import Button from '../../Button'
 import CardIcon from '../../CardIcon'
-import IconButton from '../../IconButton'
-import { AddIcon, RemoveIcon } from '../../icons'
 import Label from '../../Label'
 import Modal, { ModalProps } from '../../Modal'
+import ModalActions from '../../ModalActions'
+import ModalContent from '../../ModalContent'
 import ModalTitle from '../../ModalTitle'
+import Separator from '../../Separator'
+import Spacer from '../../Spacer'
+import Value from '../../Value'
 
 const AccountModal: React.FC<ModalProps> = ({ onDismiss }) => {
 
+  const { account, reset } = useWallet()
+
   const handleSignOutClick = useCallback(() => {
     onDismiss!()
-  }, [onDismiss])
+    reset()
+  }, [onDismiss, reset])
 
   const yamBalance = useTokenBalance(yamAddress)
-  const displayBalance = useMemo(() => {
-    return getDisplayBalance(yamBalance)
-  }, [yamBalance])
+  const yamV2Balance = useTokenBalance(yamV2Address)
 
   return (
     <Modal>
       <ModalTitle text="My Account" />
+      <ModalContent>
+        <Spacer />
 
-      <StyledBalanceWrapper>
-        <CardIcon>🍠</CardIcon>
-        <StyledBalance>
-          <StyledValue>{displayBalance}</StyledValue>
-          <Label text="YAM Balance" />
-        </StyledBalance>
-        <StyledBalanceActions>
-          <IconButton>
-            <RemoveIcon />
-          </IconButton>
-          <StyledSpacer />
-          <IconButton>
-            <AddIcon />
-          </IconButton>
-        </StyledBalanceActions>
-      </StyledBalanceWrapper>
+        <div style={{ display: 'flex' }}>
+          <StyledBalanceWrapper>
+            <CardIcon>
+              <span>🍠</span>
+            </CardIcon>
+            <StyledBalance>
+              <Value value={getDisplayBalance(yamV2Balance, 24)} />
+              <Label text="YAMV2 Balance" />
+            </StyledBalance>
+          </StyledBalanceWrapper>
+        </div>
 
-      <StyledSpacer />
-      <Button
-        href=""
-        text="More info"
-        variant="secondary"
-      />
-      <StyledSpacer />
-      <Button
-        onClick={handleSignOutClick}
-        text="Sign out"
-      />
+        <Spacer />
+        <Button
+          href={`https://etherscan.io/address/${account}`}
+          text="View on Etherscan"
+          variant="secondary"
+        />
+        <Spacer />
+        <Button
+          onClick={handleSignOutClick}
+          text="Sign out"
+          variant="secondary"
+        />
+      </ModalContent>
+      <ModalActions>
+        <Button onClick={onDismiss} text="Cancel" />
+      </ModalActions>
     </Modal>
   )
 }
-
-const StyledSpacer = styled.div`
-  height: ${props => props.theme.spacing[4]}px;
-  width: ${props => props.theme.spacing[4]}px;
-`
-
-const StyledValue = styled.div`
-  color: ${props => props.theme.color.grey[600]};
-  font-size: 36px;
-  font-weight: 700;
-`
 
 const StyledBalance = styled.div`
   align-items: center;
@@ -80,19 +76,9 @@ const StyledBalance = styled.div`
 const StyledBalanceWrapper = styled.div`
   align-items: center;
   display: flex;
+  flex: 1;
   flex-direction: column;
   margin-bottom: ${props => props.theme.spacing[4]}px;
-`
-
-const StyledBalanceIcon = styled.div`
-  font-size: 36px;
-  margin-right: ${props => props.theme.spacing[3]}px;
-`
-
-const StyledBalanceActions = styled.div`
-  align-items: center;
-  display: flex;
-  margin-top: ${props => props.theme.spacing[4]}px;
 `
 
 export default AccountModal

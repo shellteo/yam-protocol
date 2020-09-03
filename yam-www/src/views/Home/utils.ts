@@ -1,11 +1,14 @@
 import { Yam } from '../../yam'
 
+import { bnToDec } from '../../utils'
+
 import {
   getCurrentPrice as gCP,
   getTargetPrice as gTP,
   getCirculatingSupply as gCS,
   getNextRebaseTimestamp as gNRT,
   getTotalSupply as gTS,
+  getScalingFactor,
 } from '../../yamUtils'
 
 const getCurrentPrice = async (yam: typeof Yam): Promise<number> => {
@@ -38,12 +41,15 @@ export const getStats = async (yam: typeof Yam) => {
   const curPrice = await getCurrentPrice(yam)
   const circSupply = '' // await getCirculatingSupply(yam)
   const nextRebase = await getNextRebaseTimestamp(yam)
+  const rawScalingFactor = await getScalingFactor(yam)
+  const scalingFactor = Number(bnToDec(rawScalingFactor).toFixed(2))
   const targetPrice = await getTargetPrice(yam)
   const totalSupply = await getTotalSupply(yam)
   return {
     circSupply,
     curPrice,
     nextRebase,
+    scalingFactor,
     targetPrice,
     totalSupply
   }
